@@ -1,6 +1,8 @@
 /**
- * Generates minimal valid RGBA PNG placeholder icons into assets/.
+ * Generates PNG tray icons into assets/.
  * Produces both 1x (16x16) and @2x (32x32) variants for macOS retina support.
+ * Design: three horizontal bars (stacked-layers motif) to match "StrataFlux".
+ * The base icon uses black-on-transparent so macOS can use it as a template image.
  * Skips creation if the file already exists so custom icons aren't overwritten.
  */
 import { deflateSync } from 'node:zlib';
@@ -42,7 +44,11 @@ function pngChunk(type, data) {
   return Buffer.concat([lenBuf, combined, crcBuf]);
 }
 
-function createPng(width, height, r, g, b, a = 255) {
+/**
+ * Creates a PNG where each pixel's RGBA is determined by drawPixel(lx, ly) where
+ * lx/ly are logical coordinates in a 16x16 grid (scaled up for @2x).
+ */
+function createIconPng(width, height, drawPixel) {
   const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
   const ihdr = Buffer.allocUnsafe(13);
@@ -54,14 +60,17 @@ function createPng(width, height, r, g, b, a = 255) {
   ihdr[11] = 0; // filter
   ihdr[12] = 0; // interlace
 
-  // Raw scanlines: 1 filter byte + width*4 pixel bytes per row
   const raw = Buffer.allocUnsafe(height * (1 + width * 4));
   for (let y = 0; y < height; y++) {
     const base = y * (1 + width * 4);
     raw[base] = 0; // filter type None
     for (let x = 0; x < width; x++) {
+      // Map physical pixels to 16x16 logical space
+      const lx = Math.floor(x * 16 / width);
+      const ly = Math.floor(y * 16 / height);
+      const [r, g, b, a] = drawPixel(lx, ly);
       const off = base + 1 + x * 4;
-      raw[off] = r;
+      raw[off]     = r;
       raw[off + 1] = g;
       raw[off + 2] = b;
       raw[off + 3] = a;
@@ -78,31 +87,52 @@ function createPng(width, height, r, g, b, a = 255) {
   ]);
 }
 
+/**
+ * Three horizontal bars (rows 3-4, 6-7, 9-10 in 16x16 logical space,
+ * x from 1 to 14) — a stacked-layers motif.
+ */
+function isBar(lx, ly) {
+  const inX = lx >= 1 && lx <= 14;
+  const inY = (ly >= 3 && ly <= 4) || (ly >= 6 && ly <= 7) || (ly >= 9 && ly <= 10);
+  return inX && inY;
+}
+
+// Icon definitions: base is black-on-transparent (macOS template image compatible);
+// badge/error are coloured so they stand out regardless of menu-bar theme.
+const iconDefs = [
+  {
+    base: 'icon',
+    drawPixel: (lx, ly) => isBar(lx, ly) ? [0, 0, 0, 255] : [0, 0, 0, 0],
+  },
+  {
+    base: 'icon-badge',
+    // Attention state: amber/orange bars
+    drawPixel: (lx, ly) => isBar(lx, ly) ? [255, 140, 0, 255] : [0, 0, 0, 0],
+  },
+  {
+    base: 'icon-error',
+    // Error state: red bars
+    drawPixel: (lx, ly) => isBar(lx, ly) ? [220, 50, 50, 255] : [0, 0, 0, 0],
+  },
+];
+
 const assetsDir = join(ROOT, 'assets');
 mkdirSync(assetsDir, { recursive: true });
 
-const iconDefs = [
-  { base: 'icon',       r: 80,  g: 80,  b: 80,  a: 255 }, // neutral grey
-  { base: 'icon-badge', r: 255, g: 140, b: 0,   a: 255 }, // attention orange
-  { base: 'icon-error', r: 220, g: 50,  b: 50,  a: 255 }, // error red
-];
-
-for (const { base, r, g, b, a } of iconDefs) {
-  // 1x — 16x16
+for (const { base, drawPixel } of iconDefs) {
   const dest1x = join(assetsDir, `${base}.png`);
   if (existsSync(dest1x)) {
     console.log(`skip  ${base}.png (already exists)`);
   } else {
-    writeFileSync(dest1x, createPng(16, 16, r, g, b, a));
+    writeFileSync(dest1x, createIconPng(16, 16, drawPixel));
     console.log(`wrote ${base}.png`);
   }
 
-  // @2x — 32x32 (macOS retina; Electron auto-selects when file is named @2x)
   const dest2x = join(assetsDir, `${base}@2x.png`);
   if (existsSync(dest2x)) {
     console.log(`skip  ${base}@2x.png (already exists)`);
   } else {
-    writeFileSync(dest2x, createPng(32, 32, r, g, b, a));
+    writeFileSync(dest2x, createIconPng(32, 32, drawPixel));
     console.log(`wrote ${base}@2x.png`);
   }
 }

@@ -29,10 +29,6 @@ function createWindow(): BrowserWindow {
 
   win.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-  win.once('ready-to-show', () => {
-    win.show();
-  });
-
   win.on('closed', () => {
     mainWindow = null;
   });
