@@ -49,11 +49,24 @@ export class TrayManager {
   private browserWindow: BrowserWindow;
   private onRefreshNow: () => void;
   private lastRefreshed: Date | undefined;
+  private lastBlurAt = 0;
 
   constructor(browserWindow: BrowserWindow, onRefreshNow: () => void = () => {}) {
     this.browserWindow = browserWindow;
     this.onRefreshNow = onRefreshNow;
     this.tray = this.createTray();
+    this.attachWindowListeners();
+  }
+
+  // Hide on blur so clicking elsewhere dismisses the popup, like a native menu-bar
+  // popover. Re-attached whenever the window is replaced via updateWindow().
+  private attachWindowListeners(): void {
+    this.browserWindow.on('blur', () => {
+      if (this.browserWindow.isVisible()) {
+        this.browserWindow.hide();
+        this.lastBlurAt = Date.now();
+      }
+    });
   }
 
   private loadIcon(name: string): Electron.NativeImage {
@@ -70,8 +83,8 @@ export class TrayManager {
   private createTray(): Tray {
     const tray = new Tray(this.loadIcon('icon'));
     tray.setToolTip('StrataFlux');
-    tray.setContextMenu(this.buildContextMenu());
     tray.on('click', () => this.toggleWindow());
+    tray.on('right-click', () => tray.popUpContextMenu(this.buildContextMenu(this.lastRefreshed)));
     return tray;
   }
 
@@ -114,8 +127,13 @@ export class TrayManager {
       trayBounds,
       { width: winWidth, height: winHeight },
       display.workArea,
+      0,
     );
     this.browserWindow.setPosition(x, y, false);
+
+    const trayCenterX = trayBounds.x + trayBounds.width / 2;
+    const arrowX = Math.round(trayCenterX - x);
+    this.browserWindow.webContents.send('popup:arrow-offset', arrowX);
   }
 
   private showWindow(): void {
@@ -127,14 +145,19 @@ export class TrayManager {
   private toggleWindow(): void {
     if (this.browserWindow.isVisible()) {
       this.browserWindow.hide();
-    } else {
-      this.showWindow();
+      return;
     }
+    // Clicking the tray icon while the popup is focused fires blur first
+    // (which hides the window), then click — without this guard the click
+    // would immediately re-open the window the user just dismissed.
+    if (Date.now() - this.lastBlurAt < 200) {
+      return;
+    }
+    this.showWindow();
   }
 
   setIdleState(): void {
     this.tray.setImage(this.loadIcon('icon'));
-    this.tray.setContextMenu(this.buildContextMenu(this.lastRefreshed));
   }
 
   setAttentionState(): void {
@@ -147,13 +170,11 @@ export class TrayManager {
 
   updateLastRefreshed(timestamp: Date): void {
     this.lastRefreshed = timestamp;
-    this.tray.setContextMenu(this.buildContextMenu(timestamp));
   }
 
-  // After calling updateWindow, callers must also call setIdleState() or
-  // updateLastRefreshed() to rebuild the context menu against the new window reference.
   updateWindow(window: BrowserWindow): void {
     this.browserWindow = window;
+    this.attachWindowListeners();
   }
 
   destroy(): void {

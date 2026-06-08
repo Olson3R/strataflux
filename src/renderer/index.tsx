@@ -4,9 +4,13 @@ import './index.css';
 import type { SerializedTrayData } from '@shared/types';
 import { Settings } from './settings';
 
+const ARROW_HEIGHT = 10;
+const ARROW_WIDTH = 18;
+
 function App(): JSX.Element {
   const [view, setView] = useState<'popup' | 'settings'>('popup');
   const [data, setData] = useState<SerializedTrayData | null>(null);
+  const [arrowX, setArrowX] = useState<number>(240);
 
   useEffect(() => {
     window.electronAPI.getData().then(setData).catch(console.error);
@@ -18,11 +22,13 @@ function App(): JSX.Element {
     const cleanupNavigate = window.electronAPI.onNavigateSettings(() => {
       setView('settings');
     });
+    const cleanupArrow = window.electronAPI.onArrowOffset(setArrowX);
 
     return () => {
       cleanupData();
       cleanupRefresh();
       cleanupNavigate();
+      cleanupArrow();
     };
   }, []);
 
@@ -31,18 +37,35 @@ function App(): JSX.Element {
   }
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 font-sans">
-      <header className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-        <h1 className="text-lg font-semibold">StrataFlux</h1>
-        <button
-          className="text-sm text-blue-600 hover:underline"
-          onClick={() => setView('settings')}
-        >
-          Settings
-        </button>
-      </header>
+    <div
+      className="min-h-screen text-gray-900 font-sans"
+      style={{ paddingTop: ARROW_HEIGHT }}
+    >
+      <div
+        aria-hidden
+        className="absolute"
+        style={{
+          top: 0,
+          left: arrowX - ARROW_WIDTH / 2,
+          width: ARROW_WIDTH,
+          height: ARROW_HEIGHT,
+          borderLeft: `${ARROW_WIDTH / 2}px solid transparent`,
+          borderRight: `${ARROW_WIDTH / 2}px solid transparent`,
+          borderBottom: `${ARROW_HEIGHT}px solid white`,
+          filter: 'drop-shadow(0 -1px 1px rgba(0,0,0,0.08))',
+        }}
+      />
+      <div className="bg-white rounded-b-lg shadow-xl overflow-hidden">
+        <header className="flex items-center justify-end px-4 py-2 border-b border-gray-200">
+          <button
+            className="text-sm text-blue-600 hover:underline"
+            onClick={() => setView('settings')}
+          >
+            Settings
+          </button>
+        </header>
 
-      <main className="p-4">
+        <main className="p-4">
         {data === null ? (
           <p className="text-gray-500 text-sm">Loading…</p>
         ) : data.groups.length === 0 && data.unlinkedPRs.length === 0 ? (
@@ -111,6 +134,7 @@ function App(): JSX.Element {
           )}
         </footer>
       )}
+      </div>
     </div>
   );
 }
