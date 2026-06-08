@@ -1,0 +1,31 @@
+# Build outputs
+dist/
+release/
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Env / secrets (never commit tokens)
+.env
+.env.*
+!.env.example
+
+# electron-builder cache
+.electron-builder.cache/
