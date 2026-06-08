@@ -108,4 +108,5 @@ export interface ElectronAPI {
     callback: (error: { message: string; at: string }) => void
   ) => () => void;
   onNavigateSettings: (callback: () => void) => () => void;
+  onArrowOffset: (callback: (x: number) => void) => () => void;
 }

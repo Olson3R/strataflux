@@ -51,6 +51,9 @@ const api: ElectronAPI = {
 
   onNavigateSettings: (callback: () => void): () => void =>
     onChannel('navigate:settings', () => callback()),
+
+  onArrowOffset: (callback: (x: number) => void): () => void =>
+    onChannel('popup:arrow-offset', (_event, x: number) => callback(x)),
 };
 
 contextBridge.exposeInMainWorld('electronAPI', api);

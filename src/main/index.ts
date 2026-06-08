@@ -19,6 +19,13 @@ function createWindow(): BrowserWindow {
     height: 640,
     show: false,
     skipTaskbar: true,
+    frame: false,
+    transparent: true,
+    hasShadow: true,
+    resizable: false,
+    movable: false,
+    alwaysOnTop: true,
+    fullscreenable: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
